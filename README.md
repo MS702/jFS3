@@ -119,7 +119,9 @@ Runs every 30 seconds to delete unreferenced blocks.
 
 ### Universes
 jFS3 is built around the concept of filesystem universes.
+
 The root universe "/" represents the active filesystem, but additional universes (e.g. "@backup", "@u1") can be created for snapshots, branching, and isolated changes.
+
 Any path can be transferred into a subpath of another or even the same universe, producing an identical copy of that subtree.
 
 ### Sync Protocol
