@@ -56,6 +56,25 @@ Includes events:
 ### 🔹 (Optional) async sync protocol
 Includes send/receive frame encoding, block transfer, metadata merge, tombstones, and timestamp-based conflict resolution.
 
+Example (with [WebXDC](https://webxdc.org)):
+```js
+const fs = new jFS3(2048, true) // blocksize: 2048, sync: true
+// add send (TX)
+fs.addTX(
+  // called on given interval (when payload aviable)
+  (frame) => {
+    window.webxdc.sendUpdate({payload:frame})
+  },
+  // set interval (default: 10s)
+  window.webxdc.sendUpdateInterval || 10000,
+  // set max-frame-size (default: 128kB)
+  window.webxdc.sendUpdateMaxSize || 128000
+)
+
+// connect receive (RX)
+window.webxdc.setUpdateListener((update) => fs.pushRX(update.payload));
+```
+
 ### 🔹 Pure JavaScript, no dependencies
 Works in browsers, PWAs, WebViews, offline apps, and extensions (~10 kB minified).
 
