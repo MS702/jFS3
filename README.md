@@ -177,13 +177,3 @@ Uses base64-encoded JSON frames for block + inode replication.
 - Git-like branching in-browser
 
 ---
-
-## 🤝 Contributing
-
-Issues and PRs are welcome!
-
----
-
-## 📄 License
-
-LGPL-3.0
