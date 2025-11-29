@@ -185,7 +185,7 @@ Uses base64-encoded JSON frames for block + inode replication.
 - `fs.on(event, handler)`
 - `fs.off(event, handler)`
 
-### (Optional) Sync
+### Sync (sync:true)
 - `fs.addTX(sendFunction, interval, frameSize)`
 - `fs.pushRX(frame)`
 
@@ -193,7 +193,7 @@ Uses base64-encoded JSON frames for block + inode replication.
 
 ## 📌 Use Cases
 
-- Browser file managers (client-side)
+- [Client-side File-Explorer](Example/SimpleExplorer.html)
 - Offline-first editors (text, code, binary)
 - WebXDC / DeltaChat apps
 - P2P sync
