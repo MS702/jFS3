@@ -122,7 +122,7 @@ fs.onready(async () => {
   // Restore snapshot to revive deleted file
   fs.transfer("@u1", "/");
 
-}
+});
 ```
 
 ---
