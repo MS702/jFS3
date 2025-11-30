@@ -455,15 +455,18 @@ class jFS3
   }
   cloneUniverse(src, dest)
   {
+    if (src !== "/") src = src.startsWith("@") ? src : "@" + src;
     if (this.listUniverses().has(src))
     {
-      return this.transfer("/", dest.startsWith("@") ? dest : "@" + dest);
+      if (dest !== "/") dest = dest.startsWith("@") ? dest : "@" + dest;
+      return this.transfer(src, dest);
     }
     if ("create-universe" in this.eventListeners) this.emit("create-universe", dest);
   }
   deleteUniverse(name)
   {
-    const res = this.deleteTree(name === "/" ? name : "@"+name);
+    if (name !== "/") name = name.startsWith("@") ? name : "@" + name;
+    const res = this.deleteTree(name);
     if (res && "delete-universe" in this.eventListeners) this.emit("delete-universe", dest);
     return res;
   }
