@@ -51,8 +51,8 @@ Includes events:
 - delete-inode
 - move
 - copy
-- transfer
-- deleteTransfer
+- create-transfer
+- delete-transfer
 
 ### 🔹 (Optional) async sync protocol
 Includes send/receive frame encoding, block transfer, metadata merge, tombstones, and timestamp-based conflict resolution.

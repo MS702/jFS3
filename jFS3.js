@@ -447,7 +447,7 @@ class jFS3
        delete this.inodes[ident];
       }
     );
-    if ("transfer" in this.eventListeners) this.emit("delete-transfer", path);
+    if ("delete-transfer" in this.eventListeners) this.emit("delete-transfer", path);
   }
   transfer(src, dest)
   {
@@ -467,7 +467,7 @@ class jFS3
     {
       delete this.inodes[node];
     }
-    if ("transfer" in this.eventListeners) this.emit("create-transfer", src, dest);
+    if ("create-transfer" in this.eventListeners) this.emit("create-transfer", src, dest);
   }
   on(event, handler)
   {
