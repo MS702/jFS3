@@ -515,24 +515,20 @@ class jFS3
     (ident) => {
       logicalSize += this.inodes[ident].size || 0;
     });
-    const blocks = new Set();
+    var refs = 0;
     for (const node of this.inodes.values())
     {
       if (node.blocks)
       {
-        for (const block of node.blocks)
-        {
-          if(!blocks.has(block)) blocks.add(block);
-        }
+        refs += node.blocks.length;
       }
     }
-    var refs = (await this.backend.keys("blocks")).length;
-    const unique = blocks.size;
+    const unique = (await this.backend.keys("blocks")).length;
     const dedupRatio = unique > 0 ? refs/unique : 0;
     const usage = refs > 0 ? unique/refs : 0;
     return {
       logicalSize,
-      estimatedPhysicalSize: logicalSize*usage,
+      estimatedPhysicalSize: Math.round(logicalSize*usage),
       referencedBlocks: refs,
       uniqueBlocks: unique,
       dedupRatio: dedupRatio,
