@@ -88,8 +88,8 @@
       // generate quota information
       fs.quota().then((data) => {
         document.getElementById("quota_text").innerText = "LogicalSize: " + data.logicalSize + " Bytes"
-        + ", (PhysicalSize: "+ data.estimatedPhysicalSize + " Bytes)"
-        + ", PhysicalUsage: " + Math.round(data.usageRatio*1000)/10 + "%"
+        + ", PhysicalSize: "+ data.estimatedPhysicalSize + " Bytes"
+        + ", Saving: " + Math.round((1-data.usageRatio)*1000)/10 + "%"
         + ", Blocks: " + data.referencedBlocks
         + ", UniqueBlocks: " + data.uniqueBlocks;
       });
