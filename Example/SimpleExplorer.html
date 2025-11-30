@@ -5,7 +5,7 @@
     <script src="../jFS3.js"></script>
     <script>
     // init Filesystem
-    const fs = new jFS3();
+    const fs = new jFS3(8096);
 
     // helper to download-file from path
     function downloadFile(name) {
@@ -85,7 +85,7 @@
         content.appendChild(entry);
       }
       // update block count in footer
-      fs.blocks.keys().then(
+      fs.backend.keys("blocks").then(
         (blocks) => document.getElementById("block_count").innerText = "Blocks: " + blocks.length
       );
       // update inode count in footer
@@ -124,12 +124,11 @@
       }
     });
 
-    //init UI
-    function onload()
-    {
+    //init UI wenn FS is ready
+    fs.onload(() => {
       updateList();
       document.getElementById("path").value = fs.getcwd();
-    }
+    });
     </script>
 
     <style>
@@ -223,7 +222,7 @@
     }
     </style>
   </header>
-  <body onload="onload()">
+  <body>
     <input id="path" onchange="fs.chdir(this.value)"></input>
     <div id="menu">
       <button onclick="newFolder()">New folder</button>
