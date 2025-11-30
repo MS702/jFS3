@@ -84,12 +84,15 @@
         entry.appendChild(title);
         content.appendChild(entry);
       }
-      // update block count in footer
-      fs.backend.keys("blocks").then(
-        (blocks) => document.getElementById("block_count").innerText = "Blocks: " + blocks.length
-      );
-      // update inode count in footer
-      document.getElementById("inode_count").innerText = "Inodes: " + fs.inodes.keys().length;
+
+      // generate quota information
+      fs.quota().then((data) => {
+        document.getElementById("quota_text").innerText = "LogicalSize: " + data.logicalSize + " Bytes"
+        + ", (PhysicalSize: "+ data.estimatedPhysicalSize + " Bytes)"
+        + ", PhysicalUsage: " + Math.round(data.usageRatio*1000)/10 + "%"
+        + ", Blocks: " + data.referencedBlocks
+        + ", UniqueBlocks: " + data.uniqueBlocks;
+      });
     }
 
     // Add file from file picker, write it directly to the FS.
@@ -231,8 +234,7 @@
     </div>
     <div id="content"></div>
     <div id="footer">
-      <p id="block_count">Blocks: 0</p>
-      <p id="inode_count">Inodes: 0</p>
+      <p id="quota_text"></p>
     </div>
   </body>
 </html>
