@@ -190,6 +190,7 @@ Uses base64-encoded JSON frames for block + inode replication.
 
 ### Metadata
 - `fs.metainfo(path)`
+- `fs.quota(path?)`
 
 ### Universes
 - `fs.listUniverses()`
