@@ -34,17 +34,30 @@ class IDB
       }
     };
     this.db = await this._prom(req);
+    this._keys = {};
+    for (const src of this.stores)
+    {
+      const tx = this.db.transaction(src, "readonly");
+      const os = tx.objectStore(src);
+      const req = os.openKeyCursor();
+      const set = new Set();
+      await new Promise((resolve, reject) => {
+        req.onerror = () => reject(req.error);
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (!cursor) return resolve();
+          set.add(cursor.key);
+          cursor.continue();
+        };
+      });
+      this._keys[src] = set;
+    }
   }
   async getMissing(src, ...keys)
   {
     await this.ready;
-    const tx = this.db.transaction(src, "readonly");
-    const store = tx.objectStore(src);
-    const res = [];
-    for (const key of keys)
-      if (await this._prom(store.getKey(key)) === undefined)
-        res.push(key);
-    return res;
+    const set = this._keys[src];
+    return Promise.resolve(keys.filter(k => !set.has(k)));
   }
   async *get(src, ...keys)
   {
@@ -62,6 +75,7 @@ class IDB
     for (const [key, value] of entries)
     {
       await this._prom(store.put(value, key));
+      this._keys[src].add(key);
     }
   }
   async delete(src, ...keys)
@@ -72,55 +86,40 @@ class IDB
     for (const key of keys)
     {
       if (await store.getKey(key) !== undefined)
+      {
         await this._prom(store.delete(key));
+        this._keys[src].delete(key);
+      }
     }
   }
   async has(src, key)
   {
     await this.ready;
-    const tx = this.db.transaction(src, "readonly");
-    const store = tx.objectStore(src);
-    return await this._prom(store.getKey(key)) !== undefined;
+    return Promise.resolve(this._keys[src].has(key));
   }
   async keys(src)
   {
     await this.ready;
-    const tx = this.db.transaction(src, "readonly");
-    const store = tx.objectStore(src);
-    const req = store.openKeyCursor();
-    const keys = [];
-    return new Promise((resolve, reject) => {
-      req.onerror = () => reject(req.error);
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (!cursor) return resolve(keys);
-        keys.push(cursor.key);
-        cursor.continue();
-      };
-    });
+    return Promise.resolve([...this._keys[src]]);
   }
-  async entries(src)
+  async *entries(src)
   {
     await this.ready;
-    const tx = this.db.transaction(src, "readonly");
-    const store = tx.objectStore(src);
-    return new Promise((resolve, reject) => {
-      const res = {};
-      const req = store.openCursor();
-      req.onerror = () => reject(req.error);
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor)
-        {
-          res[cursor.key] = cursor.value;
-          cursor.continue();
-        }
-        else
-        {
-          resolve(res);
-        }
-      };
-    });
+    var keys = [...this._keys[src]];
+    while (keys.length > 0)
+    {
+      var index = 0;
+      for await (const value of this.get(src, ...keys.slice(0, 1000)))
+      {
+        yield Promise.resolve([keys[index++], value]);
+      }
+      keys = keys.slice(1000);
+    }
+  }
+  async onready(fn)
+  {
+    await this.ready;
+    await fn();
   }
 }
 class jFS3
@@ -422,27 +421,12 @@ class jFS3
     if (!this.isfile(path)) throw new jFSError("ENOENT", "File not found: " + path);
     const file = this.inodes[path];
     if ("read-file" in this.eventListeners) this.emit("read-file", {path, ...file});
-    const parts = [];
-    var size = 0;
-    const blocks = [];
     for (const block of await this.backend.getMissing("blocks", ...file.blocks))
     {
       throw new jFSError("EIO", "Missing block: " + block);
     }
-    for await (const chunk of this.backend.get("blocks", ...file.blocks))
-    {
-      parts.push(chunk);
-      size += chunk.length;
-    }
-    const res = new Uint8Array(size);
-    var offset = 0;
-    for (const p of parts)
-    {
-      res.set(p, offset);
-      offset += p.length;
-    }
     const name = this.split(path)[1];
-    return new File([res], name, {
+    return new File([...this.backend.get("blocks", ...file.blocks)], name, {
       type: file.mime,
       lastModified: file.mdate
     });
@@ -663,47 +647,47 @@ class jFS3
     this.on("delete-inode", async (e) => {
         await this.backend.delete("inodes", e.path);
     });
-    this.backend.entries("inodes").then((inodes) => {
-        this.inodes = new Proxy({...inodes}, {
-          get(target, key)
-          {
-              if (key == "keys")
-              {
-                  return () => Object.keys(target);
-              }
-              else if (key == "values")
-              {
-                  return () => Object.values(target);
-              }
-              if ("read-inode" in self.eventListeners) self.emit("read-inode", {path:key, ...target[key]});
-              return target[key];
-          },
-          set(target, key, value)
-          {
-              target[key] = value;
-              if (key !== "/" && "write-inode" in self.eventListeners) self.emit("write-inode", {path: key, ...value});
-              return true;
-          },
-          has(target, key)
-          {
-              return key in target;
-          },
-          deleteProperty(target, key)
-          {
-              if (key != "/")
-              {
-                  delete target[key];
-                  const ctime = Date.now();
-                  if ("delete-inode" in self.eventListeners) self.emit("delete-inode", {path: key, type: "tombstone", ctime, mtime: ctime});
-              }
-              return true;
-          }
-        });
-        if (!this.isdir("/")) this.inodes["/"] = {type: "dir", ctime: 0, mtime: 0};
-        this._cwd = "/";
-        this.deduplicate();
-        setInterval(() => this.deduplicate(), 60000);
-        fs.emit("ready");
+    this.backend.onready(async () => {
+      this.inodes = new Proxy(Object.fromEntries(await Array.fromAsync(this.backend.entries("inodes"))), {
+        get(target, key)
+        {
+            if (key == "keys")
+            {
+                return () => Object.keys(target);
+            }
+            else if (key == "values")
+            {
+                return () => Object.values(target);
+            }
+            if ("read-inode" in self.eventListeners) self.emit("read-inode", {path:key, ...target[key]});
+            return target[key];
+        },
+        set(target, key, value)
+        {
+            target[key] = value;
+            if (key !== "/" && "write-inode" in self.eventListeners) self.emit("write-inode", {path: key, ...value});
+            return true;
+        },
+        has(target, key)
+        {
+            return key in target;
+        },
+        deleteProperty(target, key)
+        {
+            if (key != "/")
+            {
+                delete target[key];
+                const ctime = Date.now();
+                if ("delete-inode" in self.eventListeners) self.emit("delete-inode", {path: key, type: "tombstone", ctime, mtime: ctime});
+            }
+            return true;
+        }
+      });
+      if (!this.isdir("/")) this.inodes["/"] = {type: "dir", ctime: 0, mtime: 0};
+      this._cwd = "/";
+      this.deduplicate();
+      setInterval(() => this.deduplicate(), 60000);
+      this.emit("ready");
     });
   }
 }
