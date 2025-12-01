@@ -9,14 +9,14 @@ class jFSError extends Error
 }
 class IDB
 {
-  constructor(name = "db", ...stores) {
+  constructor(name="db", ...stores) {
     this.name = name;
     this.stores = stores;
     this.db = null;
     this.ready = this._open();
   }
   _prom(req)
- {
+  {
     return new Promise((resolve, reject) => {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -35,41 +35,55 @@ class IDB
     };
     this.db = await this._prom(req);
   }
-  async get(src, key)
+  async getMissing(src, ...keys)
   {
     await this.ready;
     const tx = this.db.transaction(src, "readonly");
     const store = tx.objectStore(src);
-    const req = store.get(key);
-    return await this._prom(req);
+    const res = [];
+    for (const key of keys)
+      if (await this._prom(store.getKey(key)) === undefined)
+        res.push(key);
+    return res;
   }
-  async put(src, key, value)
+  async *get(src, ...keys)
+  {
+    await this.ready;
+    const tx = this.db.transaction(src, "readonly");
+    const store = tx.objectStore(src);
+    for (const key of keys)
+      yield await this._prom(store.get(key));
+  }
+  async put(src, ...entries)
   {
     await this.ready;
     const tx = this.db.transaction(src, "readwrite");
     const store = tx.objectStore(src);
-    const req = store.put(value, key);
-    return await this._prom(req);
+    for (const [key, value] of entries)
+    {
+      await this._prom(store.put(value, key));
+    }
   }
-  async delete(src, key)
+  async delete(src, ...keys)
   {
     await this.ready;
     const tx = this.db.transaction(src, "readwrite");
     const store = tx.objectStore(src);
-    const req = store.delete(key);
-    return await this._prom(req);
+    for (const key of keys)
+    {
+      if (await store.getKey(key) !== undefined)
+        await this._prom(store.delete(key));
+    }
   }
   async has(src, key)
- {
+  {
     await this.ready;
     const tx = this.db.transaction(src, "readonly");
     const store = tx.objectStore(src);
-    const req = store.getKey(key);
-    const result = await this._prom(req);
-    return result !== undefined;
+    return await this._prom(store.getKey(key)) !== undefined;
   }
   async keys(src)
- {
+  {
     await this.ready;
     const tx = this.db.transaction(src, "readonly");
     const store = tx.objectStore(src);
@@ -272,10 +286,9 @@ class jFS3
         (block) => garbage.delete(block)
       )
     );
-    for (const block of garbage)
-    {
-      await this.backend.delete("blocks", block);
-    }
+    console.log("free: ", garbage);
+    await this.backend.delete("blocks", ...garbage);
+    console.log("done.")
   }
   _path_manipulator(src, dest, onfile, ondir)
   {
@@ -391,11 +404,10 @@ class jFS3
       node.cdate = mdate;
     }
     this.inodes[path] = node;
-    while (parts.length > 0)
+    await this.backend.put("blocks", ...parts);
+    for (const [hash, chunk] of parts)
     {
-      const [hash, chunk] = parts.shift();
       if("write-block" in this.eventListeners) this.emit("write-block", {block: hash, chunk});
-      await this.backend.put("blocks", hash, chunk);
     }
     if (event in this.eventListeners) this.emit(event, {path, ...node});
     }
@@ -409,10 +421,13 @@ class jFS3
     if ("read-file" in this.eventListeners) this.emit("read-file", {path, ...file});
     const parts = [];
     var size = 0;
-    for (const block of file.blocks)
+    const blocks = [];
+    for (const block of await this.backend.getMissing("blocks", ...file.blocks))
     {
-      if (!await this.backend.has("blocks", block)) throw new jFSError("EIO", "Missing block:" + block);
-      const chunk = await this.backend.get("blocks", block);
+      throw new jFSError("EIO", "Missing block: " + block);
+    }
+    for await (const chunk of this.backend.get("blocks", ...file.blocks))
+    {
       parts.push(chunk);
       size += chunk.length;
     }
@@ -591,7 +606,7 @@ class jFS3
     {
       if (!rx) continue;
       const event = JSON.parse(atob(rx));
-      if (event.block && !await this.backend.has("blocks", event.block)) await this.backend.put("blocks", event.block, event.chunk);
+      if (event.block && !await this.backend.has("blocks", event.block)) await this.backend.put("blocks", [event.block, event.chunk]);
       else if (event.path)
       {
         const path = event.path;
@@ -640,7 +655,7 @@ class jFS3
     this.backend = new IDB("jFS3backend", "blocks", "inodes");
     this.on("write-inode", async (e) => {
         const {path, ...value} = e;
-        await this.backend.put("inodes", path, value);
+        await this.backend.put("inodes", [path, {...value}]);
     });
     this.on("delete-inode", async (e) => {
         await this.backend.delete("inodes", e.path);
@@ -663,7 +678,7 @@ class jFS3
           set(target, key, value)
           {
               target[key] = value;
-              if ("write-inode" in self.eventListeners) self.emit("write-inode", {path: key, ...value});
+              if (key !== "/" && "write-inode" in self.eventListeners) self.emit("write-inode", {path: key, ...value});
               return true;
           },
           has(target, key)
