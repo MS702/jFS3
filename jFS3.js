@@ -286,9 +286,12 @@ class jFS3
         (block) => garbage.delete(block)
       )
     );
-    console.log("free: ", garbage);
-    await this.backend.delete("blocks", ...garbage);
-    console.log("done.")
+    garbage = [...garbage];
+    while (garbage.length > 0)
+    {
+      await this.backend.delete("blocks", ...garbage.slice(0, 1000));
+      garbage = garbage.slice(1000);
+    }
   }
   _path_manipulator(src, dest, onfile, ondir)
   {
