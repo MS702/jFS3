@@ -85,22 +85,20 @@ class IDB
     const os = tx.objectStore(src);
     for (const key of keys)
     {
-      if (await os.getKey(key) !== undefined)
+      if (await this._prom(os.getKey(key)) !== undefined)
       {
         await this._prom(os.delete(key));
         this._keys[src].delete(key);
       }
     }
   }
-  async has(src, key)
+  has(src, key)
   {
-    await this.ready;
-    return Promise.resolve(this._keys[src].has(key));
+    return this._keys[src].has(key);
   }
-  async keys(src)
+  keys(src)
   {
-    await this.ready;
-    return Promise.resolve([...this._keys[src]]);
+    return [...this._keys[src]];
   }
   async *entries(src)
   {
@@ -111,7 +109,7 @@ class IDB
       var index = 0;
       for await (const value of this.get(src, ...keys.slice(0, 1000)))
       {
-        yield Promise.resolve([keys[index++], value]);
+        yield [keys[index++], value];
       }
       keys = keys.slice(1000);
     }
@@ -279,7 +277,7 @@ class jFS3
   async deduplicate()
   {
     if (this._gc_lock) return;
-    var garbage = new Set(await this.backend.keys("blocks"));
+    var garbage = new Set(this.backend.keys("blocks"));
     this._foreach(this.inodes.values(), (node) => node.blocks,
       (node) => this._foreach(node.blocks, (block) => garbage.has(block),
         (block) => garbage.delete(block)
@@ -382,7 +380,7 @@ class jFS3
         const chunk = data.slice(i, i + bs);
         const hash = await this._hash(chunk);
         blocks.push(hash);
-        if (!await this.backend.has("blocks", hash))
+        if (!this.backend.has("blocks", hash))
         {
           parts.push([hash, chunk]);
         }
@@ -467,15 +465,16 @@ class jFS3
     if (this.listUniverses().has(src))
     {
       if (dest !== "/") dest = dest.startsWith("@") ? dest : "@" + dest;
-      return this.transfer(src, dest);
+      const res = this.transfer(src, dest);
+      if (res && "create-universe" in this.eventListeners) this.emit("create-universe", dest);
+      return res;
     }
-    if ("create-universe" in this.eventListeners) this.emit("create-universe", dest);
   }
   deleteUniverse(name)
   {
     if (name !== "/") name = name.startsWith("@") ? name : "@" + name;
     const res = this.deleteTree(name);
-    if (res && "delete-universe" in this.eventListeners) this.emit("delete-universe", dest);
+    if (res && "delete-universe" in this.eventListeners) this.emit("delete-universe", name);
     return res;
   }
   transfer(src, dest)
@@ -487,7 +486,7 @@ class jFS3
       this._foreach([...this.inodes.keys()], (ident) => (ident === dest || ident.startsWith(dest === "/" ? "/" : dest+"/")),
         (ident) => garbage.add(ident)
       );
-      this._foreach(Object.entries({...this.inodes}), (ident, _) => (ident === src || ident.startsWith(src === "/" ? "/" : src+"/")),
+      this._foreach(Object.entries(this.inodes), (ident, _) => (ident === src || ident.startsWith(src === "/" ? "/" : src+"/")),
         (ident, node) => {
           const new_ident = this.join(dest, ident.slice(src.length));
           this.inodes[new_ident] = structuredClone(node);
@@ -527,7 +526,7 @@ class jFS3
       (node) => node.blocks,
       (node) => refs += node.blocks.length
     );
-    const unique = (await this.backend.keys("blocks")).length;
+    const unique = this.backend.keys("blocks").length;
     const usage = refs > 0 ? unique/refs : 0;
     return {
       logicalSize,
@@ -599,7 +598,8 @@ class jFS3
     {
       if (!rx) continue;
       const event = JSON.parse(atob(rx));
-      if (event.block && !await this.backend.has("blocks", event.block)) await this.backend.put("blocks", [event.block, event.chunk]);
+      if (event.block && !this.backend.has("blocks", event.block))
+        await this.backend.put("blocks", [event.block, event.chunk]);
       else if (event.path)
       {
         const path = event.path;
