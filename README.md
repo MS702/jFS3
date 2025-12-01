@@ -132,7 +132,7 @@ fs.onready(async () => {
 
 ---
 ## 📗 Examples
-- [SimpleExplorer](Example/SimpleExplorer.html) ([Demo](https://raw.githack.com/MS702/jFS3/refs/heads/main/Example/SimpleExplorer.html))
+- [SimpleExplorer](Example/SimpleExplorer.html) ([Demo](https://raw.githack.com/MS702/jFS3/refs/heads/main/Example/SimpleExplorer.html?202512010))
 
 ---
 
