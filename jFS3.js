@@ -63,18 +63,18 @@ class IDB
   {
     await this.ready;
     const tx = this.db.transaction(src, "readonly");
-    const store = tx.objectStore(src);
+    const os = tx.objectStore(src);
     for (const key of keys)
-      yield await this._prom(store.get(key));
+      yield await this._prom(os.get(key));
   }
   async put(src, ...entries)
   {
     await this.ready;
     const tx = this.db.transaction(src, "readwrite");
-    const store = tx.objectStore(src);
+    const os = tx.objectStore(src);
     for (const [key, value] of entries)
     {
-      await this._prom(store.put(value, key));
+      await this._prom(os.put(value, key));
       this._keys[src].add(key);
     }
   }
@@ -82,12 +82,12 @@ class IDB
   {
     await this.ready;
     const tx = this.db.transaction(src, "readwrite");
-    const store = tx.objectStore(src);
+    const os = tx.objectStore(src);
     for (const key of keys)
     {
-      if (await store.getKey(key) !== undefined)
+      if (await os.getKey(key) !== undefined)
       {
-        await this._prom(store.delete(key));
+        await this._prom(os.delete(key));
         this._keys[src].delete(key);
       }
     }
@@ -426,10 +426,16 @@ class jFS3
       throw new jFSError("EIO", "Missing block: " + block);
     }
     const name = this.split(path)[1];
-    return new File([...this.backend.get("blocks", ...file.blocks)], name, {
-      type: file.mime,
-      lastModified: file.mdate
-    });
+    return new File(
+      await Array.fromAsync(
+          this.backend.get("blocks", ...file.blocks)
+      ),
+      name,
+      {
+        type: file.mime,
+        lastModified: file.mdate
+      }
+    );
   }
   metainfo(path)
   {
