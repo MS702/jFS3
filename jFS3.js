@@ -372,14 +372,16 @@ class jFS3
       const size = data.length;
       const blocks = [];
       const parts = [];
+      const hashs = new Set();
       for (var i = 0; i < data.length; i += bs)
       {
         const chunk = data.slice(i, i + bs);
         const hash = await this._hash(chunk);
         blocks.push(hash);
-        if (!this.backend.has("blocks", hash))
+        if (!this.backend.has("blocks", hash) && !hashs.has(hash))
         {
           parts.push([hash, chunk]);
+          hashs.add(hash);
         }
       }
     const mdate = Date.now();
