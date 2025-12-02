@@ -2,17 +2,19 @@
 <html>
   <head>
     <meta charset="utf-8"/>
-    <script src="../../jFS3.js"></script>
-    <script src="eruda.js"></script>
+    <script src="../jFS3.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>eruda.init();</script>
     <script>
       eruda.init();
-      const fs = new jFS3();
+      const fs = new jFS3(8096, true);
       for (const event of ["write-inode", "read-inode", "delete-inode", "write-file",
       "read-file", "change-file", "write-dir", "delete-dir", "change-path", "write-block",
-      "create-transfer", "delete-transfer"])
+      "create-universe", "delete-universe"])
       {
         fs.on(event, (...args) => console.log(event,...args))
       }
     </script>
   </head>
+  <p>use the <b>fs</b> object in the console</p>
 </html>
