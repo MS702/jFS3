@@ -342,12 +342,8 @@ class jFS3
     );
     if ("copy" in this.eventListeners) this.emit("copy", src, dest);
   }
-  async writeFile(path, content="", bs=this._bs)
+  async _split_data(content)
   {
-    path = this.abspath(path);
-    if (this.isdir(path)) throw new jFSError("EISDIR", "Not a file: " + path);
-    const [parent, name] = this.split(path);
-    if (!this.isdir(parent)) throw new jFSError("ENOENT", "Parent directory not found: " + parent);
     var data = undefined;
     var mime = "application/octet-stream";
     const mdate = Date.now();
@@ -367,28 +363,40 @@ class jFS3
       data = new TextEncoder().encode(content);
       mime = "text/plain";
     }
-    if (data)
-    {
-      const size = data.length;
-      const blocks = [];
-      const parts = [];
+    return [mime, data, cdate, mdate, data?.length ?? 0];
+  }
+  async _chunkData(data, bs=this._bs)
+  {
       const hashs = new Set();
+      const index = [];
+      const blocks = [];
       for (var i = 0; i < data.length; i += bs)
       {
         const chunk = data.slice(i, i + bs);
         const hash = await this._hash(chunk);
-        blocks.push(hash);
-        if (!this.backend.has("blocks", hash) && !hashs.has(hash))
+        index.push(hash);
+        if (!hashs.has(hash) && !this.backend.has("blocks", hash))
         {
-          parts.push([hash, chunk]);
-          hashs.add(hash);
+            hashs.add(hash);
+            blocks.push([hash, chunk]);
         }
       }
-    const mdate = Date.now();
-    const node = {
+      return [index, blocks];
+  }
+  async writeFile(path, content="", bs=this._bs)
+  {
+    path = this.abspath(path);
+    if (this.isdir(path)) throw new jFSError("EISDIR", "Not a file: " + path);
+    const [parent, name] = this.split(path);
+    if (!this.isdir(parent)) throw new jFSError("ENOENT", "Parent directory not found: " + parent);
+    const [mime, data, cdate, mdate, size] = await this._split_data(content);
+    if (data)
+    {
+      const [index, blocks] = await this._chunkData(data, bs);
+      const node = {
       ...this.inodes[path],
       type: "file",
-      blocks,
+      blocks: index,
       size,
       mdate
     }
@@ -400,15 +408,38 @@ class jFS3
     else
     {
       event = "create-file";
-      node.cdate = mdate;
+      node.cdate = cdate;
     }
     this.inodes[path] = node;
-    await this.backend.put("blocks", ...parts);
-    for (const [hash, chunk] of parts)
+    await this.backend.put("blocks", ...blocks);
+    for (const [hash, chunk] of blocks)
     {
       if("write-block" in this.eventListeners) this.emit("write-block", {block: hash, chunk});
     }
     if (event in this.eventListeners) this.emit(event, {path, ...node});
+    }
+  }
+  async appendFile(path, content, bs=this._bs)
+  {
+    path = this.abspath(path);
+    if (!this.isfile(path)) throw new jFSError("ENOENT", "File do not exist: " + path);
+    const [parent, name] = this.split(path);
+    if (!this.isdir(parent)) throw new jFSError("ENOENT", "Parent directory not found: " + parent);
+    const [_1, data, _2, mdate, size] = await this._split_data(content);
+    if (data)
+    {
+      const [index, blocks] = await this._chunkData(data, bs);
+      const inode = this.inodes[path];
+      inode.blocks.push(...index);
+      inode.mdate = mdate;
+      inode.size += size;
+      this.inodes[path] = inode;
+      await this.backend.put("blocks", ...blocks);
+      for (const [hash, chunk] of blocks)
+      {
+        if("write-block" in this.eventListeners) this.emit("write-block", {block: hash, chunk});
+      }
+      if ("change-file" in this.eventListeners) this.emit("change-file", {path, ...inode});
     }
   }
   async readFile(path)

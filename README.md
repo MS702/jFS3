@@ -174,6 +174,7 @@ Uses base64-encoded JSON frames for block + inode replication.
 
 ### Files
 - `fs.writeFile(path, data, blocksize?)`
+- `fs.appendFile(path, data, blocksize?)`
 - `fs.readFile(path)`
 - `fs.rm(path)`
 
