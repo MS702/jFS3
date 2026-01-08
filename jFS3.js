@@ -398,7 +398,8 @@ class jFS3
       type: "file",
       blocks: index,
       size,
-      mdate
+      mdate,
+      mime
     }
     var event;
     if (node.cdate)
