@@ -226,5 +226,5 @@ Uses base64-encoded JSON frames for block + inode replication.
 
 Issues and feature suggestions are welcome. Contributions are appreciated!
 
-## 🤖 AI Disclaimer
+## 🤖 AI Usage & Code Authorship
 All code was developed and written entirely by humans. No AI-generated code was used. AI was used exclusively to assist with documentation and to identify potential edge cases and failure scenarios. The results were subsequently reviewed, evaluated, and, where necessary, adjusted by humans.
