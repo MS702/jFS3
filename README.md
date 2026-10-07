@@ -222,6 +222,9 @@ Uses base64-encoded JSON frames for block + inode replication.
 
 ---
 
+## 🤖 AI Disclaimer
+All code was developed and written by humans. AI was used exclusively to assist with documentation and to identify potential edge cases and failure scenarios. The results were subsequently reviewed, evaluated, and, where necessary, adjusted by humans.
+
 ## 🤝 Contributing
 
 Issues and feature suggestions are welcome. Contributions are appreciated!
